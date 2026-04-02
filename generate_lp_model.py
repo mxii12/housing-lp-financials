@@ -220,138 +220,160 @@ def build_summary_sheet(wb):
         inp = ws.cell(row=r, column=3, value=default)
         style_input_cell(inp, fmt)
 
-    # ── Asset Class Summary Section ──
+    # ── Summary Statistics Section ──
     row = 13
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=end_col)
-    ws.cell(row=row, column=1, value="Asset Class Summary (Year 1)").font = HEADER_FONT
+    ws.cell(row=row, column=1, value="Summary Statistics").font = HEADER_FONT
     style_header_row(ws, row, 1, end_col)
 
-    # Column headers
+    # Helper: sum a row across all years in Annual Model (cols C-V)
+    def _am_sum(am_row):
+        parts = [f"'Annual Model'!{get_column_letter(2+y)}{am_row}"
+                 for y in range(1, NUM_YEARS + 1)]
+        return "=" + "+".join(parts)
+
+    # Last year column letter in Annual Model
+    last_yr_cl = get_column_letter(2 + NUM_YEARS)
+
+    # ── Return Metrics sub-section ──
     row = 14
-    headers = ["Asset Class", "", "Allocation", "Expected Yield"]
-    for i, h in enumerate(headers):
-        cell = ws.cell(row=row, column=i + 1, value=h)
-        cell.font = SUBHEADER_FONT
-        cell.fill = SUBHEADER_FILL
-        cell.border = THIN_BORDER
-        cell.alignment = CENTER
+    ws.cell(row=row, column=1, value="Return Metrics").font = SUBHEADER_FONT
+    style_subheader_row(ws, row, 1, end_col)
+    ws.cell(row=row, column=1).alignment = LEFT
 
-    # Asset class rows (linked to Annual Model)
-    for i, name in enumerate(ASSET_CLASSES):
-        r = 15 + i
-        label_cell = ws.cell(row=r, column=1, value=name)
-        style_label_cell(label_cell)
-        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+    # Precompute comma-joined cell references for AVERAGE/MAX/MIN formulas
+    def _am_refs(am_row):
+        return ",".join(
+            "'Annual Model'!" + get_column_letter(2 + y) + str(am_row)
+            for y in range(1, NUM_YEARS + 1)
+        )
 
-        # Allocation from Annual Model (rows 6-10, col C = Year 1)
-        alloc_cell = ws.cell(row=r, column=3)
-        alloc_cell.value = f"='Annual Model'!C{6 + i}"
-        style_calc_cell(alloc_cell, FMT_PCT)
+    net_yield_refs = _am_refs(47)
+    gross_yield_refs = _am_refs(20)
+    end_aum_refs = _am_refs(48)
 
-        # Yield from Annual Model (rows 13-17, col C = Year 1)
-        yield_cell = ws.cell(row=r, column=4)
-        yield_cell.value = f"='Annual Model'!C{13 + i}"
-        style_calc_cell(yield_cell, FMT_PCT)
-
-    # Total allocation row
-    r_total = 15 + NUM_ASSETS
-    ws.merge_cells(start_row=r_total, start_column=1, end_row=r_total, end_column=2)
-    ws.cell(row=r_total, column=1, value="Total Allocation").font = BOLD_FONT
-    total_cell = ws.cell(row=r_total, column=3)
-    total_cell.value = f"=SUM(C15:C{14 + NUM_ASSETS})"
-    style_subtotal_cell(total_cell, FMT_PCT)
-
-    # ── Multi-Year Performance Summary ──
-    row = 22
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=end_col)
-    ws.cell(row=row, column=1, value="Multi-Year Performance Summary").font = HEADER_FONT
-    style_header_row(ws, row, 1, end_col)
-
-    # Column headers
-    row = 23
-    perf_headers = [
-        "Year", "", "Beginning AUM", "Gross Yield",
-        "Net Yield", "Net Income", "Ending AUM", ""
+    stats = [
+        (15, "Net IRR (Avg Annual Net Yield)",
+         f"=AVERAGE({net_yield_refs})",
+         FMT_PCT),
+        (16, "Gross IRR (Avg Annual Gross Yield)",
+         f"=AVERAGE({gross_yield_refs})",
+         FMT_PCT),
+        (17, "MOIC (Multiple on Invested Capital)",
+         f"='Annual Model'!{last_yr_cl}48/Summary!$C$5",
+         '0.00x'),
+        (18, "DPI (Distributions to Paid-In)",
+         f"=({_am_sum(46)[1:]})/Summary!$C$5",
+         '0.00x'),
+        (19, "Total Value to Paid-In (TVPI)",
+         f"=('Annual Model'!{last_yr_cl}48+{_am_sum(46)[1:]})/Summary!$C$5",
+         '0.00x'),
     ]
-    for i, h in enumerate(perf_headers):
-        cell = ws.cell(row=row, column=i + 1, value=h)
-        cell.font = SUBHEADER_FONT
-        cell.fill = SUBHEADER_FILL
-        cell.border = THIN_BORDER
-        cell.alignment = CENTER
 
-    # Year rows (1-20) referencing Annual Model
-    # Annual Model layout: row 19=Beginning AUM, 20=Gross Yield, 46=Net Income,
-    # 47=Net Yield, 48=Ending AUM; cols C-V = years 1-20
-    for yr in range(1, NUM_YEARS + 1):
-        r = 23 + yr
-        col_letter = get_column_letter(2 + yr)  # C=3 -> year 1, etc.
-
-        ws.cell(row=r, column=1, value=yr).font = BODY_FONT
-        ws.cell(row=r, column=1).alignment = CENTER
-        ws.cell(row=r, column=1).border = THIN_BORDER
-
-        # Beginning AUM
-        c = ws.cell(row=r, column=3)
-        c.value = f"='Annual Model'!{col_letter}19"
-        style_calc_cell(c, FMT_CURRENCY)
-
-        # Gross Yield
-        c = ws.cell(row=r, column=4)
-        c.value = f"='Annual Model'!{col_letter}20"
-        style_calc_cell(c, FMT_PCT)
-
-        # Net Yield
-        c = ws.cell(row=r, column=5)
-        c.value = f"='Annual Model'!{col_letter}47"
-        style_calc_cell(c, FMT_PCT)
-
-        # Net Income
-        c = ws.cell(row=r, column=6)
-        c.value = f"='Annual Model'!{col_letter}46"
-        style_calc_cell(c, FMT_CURRENCY)
-
-        # Ending AUM
-        c = ws.cell(row=r, column=7)
-        c.value = f"='Annual Model'!{col_letter}48"
-        style_calc_cell(c, FMT_CURRENCY)
-
-        # Border the empty cols
-        for empty_col in [2, 8]:
-            ws.cell(row=r, column=empty_col).border = THIN_BORDER
-
-    # ── Key Metrics Section ──
-    row = 45
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=end_col)
-    ws.cell(row=row, column=1, value="Key Metrics").font = HEADER_FONT
-    style_header_row(ws, row, 1, end_col)
-
-    metrics = [
-        (46, "Cumulative Net Income", f"=SUM(F24:F{23 + NUM_YEARS})", FMT_CURRENCY),
-        (47, "Average Net Yield (Annualized)", f"=AVERAGE(E24:E{23 + NUM_YEARS})", FMT_PCT),
-        (48, "Total AUM Growth", f"=G{23 + NUM_YEARS}/C24-1", FMT_PCT),
-        (49, "Total Management Fees Paid",
-         "+".join([f"'Annual Model'!{get_column_letter(2+y)}39" for y in range(1, NUM_YEARS+1)]),
-         FMT_CURRENCY),
-        (50, "Total Performance Fees Paid",
-         "+".join([f"'Annual Model'!{get_column_letter(2+y)}41" for y in range(1, NUM_YEARS+1)]),
-         FMT_CURRENCY),
-    ]
-    for r, label, formula, fmt in metrics:
+    for r, label, formula, fmt in stats:
         ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
         label_cell = ws.cell(row=r, column=1, value=label)
-        style_label_cell(label_cell, bold=True)
-        val_cell = ws.cell(row=r, column=3, value=f"={formula}" if not formula.startswith("=") else formula)
+        style_label_cell(label_cell, indent=1)
+        val_cell = ws.cell(row=r, column=3, value=formula)
         style_calc_cell(val_cell, fmt, bold=True)
 
-    # Legend
-    row = 52
+    # ── Capital Metrics sub-section ──
+    row = 21
+    ws.cell(row=row, column=1, value="Capital Metrics").font = SUBHEADER_FONT
+    style_subheader_row(ws, row, 1, end_col)
+    ws.cell(row=row, column=1).alignment = LEFT
+
+    cap_stats = [
+        (22, "Initial Committed Capital",
+         "=Summary!$C$5", FMT_CURRENCY),
+        (23, "Ending AUM (Year 20)",
+         f"='Annual Model'!{last_yr_cl}48", FMT_CURRENCY),
+        (24, "Total AUM Growth",
+         f"='Annual Model'!{last_yr_cl}48/Summary!$C$5-1", FMT_PCT),
+        (25, "Total Cumulative Net Income",
+         _am_sum(46), FMT_CURRENCY),
+        (26, "Total Cumulative Gross Income",
+         _am_sum(36), FMT_CURRENCY),
+        (27, "Peak AUM",
+         f"=MAX({end_aum_refs})",
+         FMT_CURRENCY),
+    ]
+
+    for r, label, formula, fmt in cap_stats:
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        label_cell = ws.cell(row=r, column=1, value=label)
+        style_label_cell(label_cell, indent=1)
+        val_cell = ws.cell(row=r, column=3, value=formula)
+        style_calc_cell(val_cell, fmt, bold=True)
+
+    # ── Fee & Expense Metrics sub-section ──
+    row = 29
+    ws.cell(row=row, column=1, value="Fee & Expense Metrics").font = SUBHEADER_FONT
+    style_subheader_row(ws, row, 1, end_col)
+    ws.cell(row=row, column=1).alignment = LEFT
+
+    fee_stats = [
+        (30, "Total Management Fees",
+         _am_sum(39), FMT_CURRENCY),
+        (31, "Total Performance Fees",
+         _am_sum(41), FMT_CURRENCY),
+        (32, "Total Other Expenses",
+         _am_sum(42), FMT_CURRENCY),
+        (33, "Total All-In Fees & Expenses",
+         _am_sum(43), FMT_CURRENCY),
+        (34, "Fee Drag (Fees / Gross Income)",
+         f"=IF(C26=0,0,C33/C26)", FMT_PCT),
+        (35, "Net-to-Gross Ratio",
+         f"=IF(C26=0,0,C25/C26)", FMT_PCT),
+    ]
+
+    for r, label, formula, fmt in fee_stats:
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        label_cell = ws.cell(row=r, column=1, value=label)
+        style_label_cell(label_cell, indent=1)
+        val_cell = ws.cell(row=r, column=3, value=formula)
+        style_calc_cell(val_cell, fmt, bold=True)
+
+    # ── Yield & Risk Metrics sub-section ──
+    row = 37
+    ws.cell(row=row, column=1, value="Yield & Risk Metrics").font = SUBHEADER_FONT
+    style_subheader_row(ws, row, 1, end_col)
+    ws.cell(row=row, column=1).alignment = LEFT
+
+    yield_stats = [
+        (38, "Year 1 Net Yield",
+         "='Annual Model'!C47", FMT_PCT),
+        (39, f"Year {NUM_YEARS} Net Yield",
+         f"='Annual Model'!{last_yr_cl}47", FMT_PCT),
+        (40, "Best Year Net Yield",
+         f"=MAX({net_yield_refs})",
+         FMT_PCT),
+        (41, "Worst Year Net Yield",
+         f"=MIN({net_yield_refs})",
+         FMT_PCT),
+        (42, "Year 1 Gross Yield",
+         "='Annual Model'!C20", FMT_PCT),
+        (43, "Gross-to-Net Spread (Avg)",
+         f"=C16-C15", FMT_PCT),
+        (44, "Leverage Contribution (Year 1)",
+         "=IF('Annual Model'!C28=0,0,'Annual Model'!C34/'Annual Model'!C28)",
+         FMT_PCT),
+    ]
+
+    for r, label, formula, fmt in yield_stats:
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        label_cell = ws.cell(row=r, column=1, value=label)
+        style_label_cell(label_cell, indent=1)
+        val_cell = ws.cell(row=r, column=3, value=formula)
+        style_calc_cell(val_cell, fmt, bold=True)
+
+    # ── Legend ──
+    row = 46
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
     legend = ws.cell(row=row, column=1,
                      value="Input cells are highlighted in orange. Modify inputs to update the model.")
     legend.font = make_font(italic=True, color=MEDIUM_GRAY, size=9)
 
-    # Orange legend swatch
     swatch = ws.cell(row=row, column=5)
     swatch.fill = INPUT_FILL
     swatch.value = "= Input"
