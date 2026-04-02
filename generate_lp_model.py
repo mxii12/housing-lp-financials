@@ -54,8 +54,6 @@ DEFAULT_MGMT_FEE_BPS = 50
 DEFAULT_PERF_FEE_BPS = 2000    # 20% of excess return
 DEFAULT_HURDLE_BPS = 400       # 4% hurdle
 DEFAULT_OTHER_EXP_BPS = 15
-DEFAULT_LEVERAGE_PCT = 0.25
-DEFAULT_LEVERAGE_COST_BPS = 350
 
 # Year 1 defaults (same for all years as starting point)
 DEFAULT_ALLOCATIONS = [0.35, 0.25, 0.15, 0.15, 0.10]
@@ -209,8 +207,6 @@ def build_summary_sheet(wb):
         (7, "Performance Fee (% of excess return)", DEFAULT_PERF_FEE_BPS, FMT_BPS),
         (8, "Hurdle Rate", DEFAULT_HURDLE_BPS, FMT_BPS),
         (9, "Other Expenses", DEFAULT_OTHER_EXP_BPS, FMT_BPS),
-        (10, "Leverage Percentage", DEFAULT_LEVERAGE_PCT, FMT_PCT_INPUT),
-        (11, "Leverage Cost", DEFAULT_LEVERAGE_COST_BPS, FMT_BPS),
     ]
     for r, label, default, fmt in params:
         label_cell = ws.cell(row=r, column=1, value=label)
@@ -355,9 +351,6 @@ def build_summary_sheet(wb):
          "='Annual Model'!C20", FMT_PCT),
         (43, "Gross-to-Net Spread (Avg)",
          f"=C16-C15", FMT_PCT),
-        (44, "Leverage Contribution (Year 1)",
-         "=IF('Annual Model'!C28=0,0,'Annual Model'!C34/'Annual Model'!C28)",
-         FMT_PCT),
     ]
 
     for r, label, formula, fmt in yield_stats:
@@ -567,61 +560,6 @@ def build_annual_model_sheet(wb):
         cell.value = f"=SUM({cl}23:{cl}27)"
         style_subtotal_cell(cell, FMT_CURRENCY)
 
-    # ── Leverage Section ──
-    row = 30
-    ws.cell(row=row, column=1, value="Leverage").font = SUBHEADER_FONT
-    ws.cell(row=row, column=2, value="$").font = make_font(color=MEDIUM_GRAY, size=9)
-    style_subheader_row(ws, row, 1, last_col)
-    ws.cell(row=row, column=1).alignment = LEFT
-
-    # Leveraged AUM (row 31)
-    row = 31
-    label = ws.cell(row=row, column=1, value="Leveraged AUM")
-    style_label_cell(label, indent=1)
-    ws.cell(row=row, column=2).border = THIN_BORDER
-    for yr in range(1, NUM_YEARS + 1):
-        col = 2 + yr
-        cl = get_column_letter(col)
-        cell = ws.cell(row=row, column=col)
-        cell.value = f"={cl}19*Summary!$C$10"
-        style_calc_cell(cell, FMT_CURRENCY)
-
-    # Leveraged Income (row 32)
-    row = 32
-    label = ws.cell(row=row, column=1, value="Leveraged Income")
-    style_label_cell(label, indent=1)
-    ws.cell(row=row, column=2).border = THIN_BORDER
-    for yr in range(1, NUM_YEARS + 1):
-        col = 2 + yr
-        cl = get_column_letter(col)
-        cell = ws.cell(row=row, column=col)
-        cell.value = f"={cl}31*{cl}20"
-        style_calc_cell(cell, FMT_CURRENCY)
-
-    # Leverage Cost (row 33)
-    row = 33
-    label = ws.cell(row=row, column=1, value="Leverage Cost")
-    style_label_cell(label, indent=1)
-    ws.cell(row=row, column=2).border = THIN_BORDER
-    for yr in range(1, NUM_YEARS + 1):
-        col = 2 + yr
-        cl = get_column_letter(col)
-        cell = ws.cell(row=row, column=col)
-        cell.value = f"={cl}31*Summary!$C$11/10000"
-        style_calc_cell(cell, FMT_CURRENCY)
-
-    # Net Leverage Income (row 34)
-    row = 34
-    label = ws.cell(row=row, column=1, value="Net Leverage Income")
-    style_label_cell(label, bold=True)
-    ws.cell(row=row, column=2).border = THIN_BORDER
-    for yr in range(1, NUM_YEARS + 1):
-        col = 2 + yr
-        cl = get_column_letter(col)
-        cell = ws.cell(row=row, column=col)
-        cell.value = f"={cl}32-{cl}33"
-        style_subtotal_cell(cell, FMT_CURRENCY)
-
     # ── Total Gross Income ──
     row = 36
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=2)
@@ -637,7 +575,7 @@ def build_annual_model_sheet(wb):
         col = 2 + yr
         cl = get_column_letter(col)
         cell = ws.cell(row=row, column=col)
-        cell.value = f"={cl}28+{cl}34"
+        cell.value = f"={cl}28"
         cell.font = make_font(bold=True, color=WHITE)
         cell.fill = make_fill(TEAL_GREEN)
         cell.number_format = FMT_CURRENCY
