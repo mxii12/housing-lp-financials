@@ -1278,6 +1278,33 @@ def build_annual_model_sheet(wb):
         cell.alignment = RIGHT
         cell.border = THIN_BORDER
 
+    # Securitization Proceeds Distributed to LPs
+    # When loans/JVs are securitized, the senior tranche proceeds are returned
+    # to shareholders, reducing AUM in the subsequent period.
+    r += 1
+    ROW_SECUR_PROCEEDS = r
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+    label = ws.cell(row=r, column=1,
+                    value="Less: Securitization Proceeds (Distributed to LPs)")
+    label.font = make_font(bold=True, color=WHITE, size=10)
+    label.fill = make_fill(DARK_TEAL)
+    label.alignment = LEFT
+    label.border = THIN_BORDER
+    ws.cell(row=r, column=2).fill = make_fill(DARK_TEAL)
+    ws.cell(row=r, column=2).border = THIN_BORDER
+
+    for yr in range(1, NUM_YEARS + 1):
+        col = 2 + yr
+        cl = get_column_letter(col)
+        cell = ws.cell(row=r, column=col)
+        # Senior tranche proceeds from both loan securitization and JV resecuritization
+        cell.value = f"={cl}{ROW_LOAN_SENIOR}+{cl}{ROW_JV_SENIOR}"
+        cell.font = make_font(bold=True, color=WHITE)
+        cell.fill = make_fill(DARK_TEAL)
+        cell.number_format = FMT_CURRENCY
+        cell.alignment = RIGHT
+        cell.border = THIN_BORDER
+
     # Ending AUM
     r += 1
     ROW_ENDING_AUM = r
@@ -1294,7 +1321,9 @@ def build_annual_model_sheet(wb):
         col = 2 + yr
         cl = get_column_letter(col)
         cell = ws.cell(row=r, column=col)
-        cell.value = f"={cl}{ROW_BEG_AUM}+{cl}{ROW_NET_INCOME}"
+        # Net Income adds to AUM; securitization senior tranche proceeds are
+        # distributed to LPs and therefore reduce the subsequent period's AUM.
+        cell.value = f"={cl}{ROW_BEG_AUM}+{cl}{ROW_NET_INCOME}-{cl}{ROW_SECUR_PROCEEDS}"
         cell.font = make_font(bold=True, color=WHITE)
         cell.fill = make_fill(ORANGE)
         cell.number_format = FMT_CURRENCY
@@ -1324,6 +1353,7 @@ def build_annual_model_sheet(wb):
         "net_lev_inc": ROW_NET_LEV_INC,
         "leveraged_amt": ROW_LEVERAGED_AMT,
         "total_secur_inc": ROW_TOTAL_SECUR_INC,
+        "secur_proceeds": ROW_SECUR_PROCEEDS,
         "total_gross": ROW_TOTAL_GROSS,
         "mgmt_fee": ROW_MGMT_FEE,
         "perf_fee": ROW_PERF_FEE,
