@@ -1556,8 +1556,105 @@ def build_summary_sheet(wb, rows):
         val_cell = ws.cell(row=r, column=3, value=formula)
         style_calc_cell(val_cell, fmt, bold=True)
 
-    # ── Legend ──
+    # ── Distributable Income Dynamics ──
+    row = 52
+    ws.cell(row=row, column=1,
+            value="Distributable Income Dynamics").font = SUBHEADER_FONT
+    style_subheader_row(ws, row, 1, end_col)
+    ws.cell(row=row, column=1).alignment = LEFT
+
+    # Column headers: Year 1 | Year 5 | Year 10 | Year 15 | Year 20 | Cumulative
     row = 53
+    snapshot_years = [1, 5, 10, 15, NUM_YEARS]
+    snapshot_labels = [f"Year {y}" for y in snapshot_years] + ["Cumulative"]
+    for i, lbl in enumerate(snapshot_labels):
+        hdr = ws.cell(row=row, column=3 + i, value=lbl)
+        hdr.font = make_font(bold=True, color="FFFFFF", size=9)
+        hdr.fill = HEADER_FILL
+        hdr.alignment = CENTER
+        hdr.border = THIN_BORDER
+
+    def _snap_refs(am_row):
+        """Excel refs for the five snapshot years."""
+        return [f"='Annual Model'!{get_column_letter(2 + y)}{am_row}"
+                for y in snapshot_years]
+
+    def _snap_row(ws_row, label, am_row, fmt, cumulative_formula):
+        ws.merge_cells(start_row=ws_row, start_column=1,
+                       end_row=ws_row, end_column=2)
+        lc = ws.cell(row=ws_row, column=1, value=label)
+        style_label_cell(lc, indent=1)
+        for col_offset, formula in enumerate(_snap_refs(am_row)):
+            cell = ws.cell(row=ws_row, column=3 + col_offset, value=formula)
+            style_calc_cell(cell, fmt)
+        cum_cell = ws.cell(row=ws_row, column=8, value=cumulative_formula)
+        style_calc_cell(cum_cell, fmt, bold=True)
+
+    _snap_row(54, "Net Distributable Income",
+              rows["net_income"], FMT_CURRENCY, _am_sum(rows["net_income"]))
+    _snap_row(55, "Total Gross Income",
+              rows["total_gross"], FMT_CURRENCY, _am_sum(rows["total_gross"]))
+    _snap_row(56, "Asset Income",
+              rows["total_asset_inc"], FMT_CURRENCY,
+              _am_sum(rows["total_asset_inc"]))
+    _snap_row(57, "Leverage Income",
+              rows["net_lev_inc"], FMT_CURRENCY, _am_sum(rows["net_lev_inc"]))
+    _snap_row(58, "Securitization Income",
+              rows["total_secur_inc"], FMT_CURRENCY,
+              _am_sum(rows["total_secur_inc"]))
+    _snap_row(59, "Total Fees & Expenses",
+              rows["total_fees"], FMT_CURRENCY, _am_sum(rows["total_fees"]))
+
+    # Payout Ratio (Net / Gross) — snapshot + average
+    ws.merge_cells(start_row=60, start_column=1, end_row=60, end_column=2)
+    pr_label = ws.cell(row=60, column=1, value="Payout Ratio (Net / Gross)")
+    style_label_cell(pr_label, indent=1)
+    for col_offset, yr in enumerate(snapshot_years):
+        yr_cl = get_column_letter(2 + yr)
+        cell = ws.cell(
+            row=60, column=3 + col_offset,
+            value=f"=IFERROR('Annual Model'!{yr_cl}{rows['net_income']}/"
+                  f"'Annual Model'!{yr_cl}{rows['total_gross']},0)")
+        style_calc_cell(cell, FMT_PCT)
+    avg_pr = ws.cell(
+        row=60, column=8,
+        value=f"=IFERROR(C54/C55,0)")
+    style_calc_cell(avg_pr, FMT_PCT, bold=True)
+
+    # ── Income Growth Metrics ──
+    row = 62
+    ws.cell(row=row, column=1,
+            value="Income Growth Metrics").font = SUBHEADER_FONT
+    style_subheader_row(ws, row, 1, end_col)
+    ws.cell(row=row, column=1).alignment = LEFT
+
+    ni_c1 = f"'Annual Model'!C{rows['net_income']}"
+    ni_last = f"'Annual Model'!{last_yr_cl}{rows['net_income']}"
+    net_income_refs = _am_refs(rows["net_income"])
+
+    growth_stats = [
+        (63, "Income CAGR (Year 1 → Year 20)",
+         f"=IFERROR(({ni_last}/{ni_c1})^(1/{NUM_YEARS - 1})-1,0)",
+         FMT_PCT),
+        (64, "Average Annual Net Income",
+         f"=C25/{NUM_YEARS}", FMT_CURRENCY),
+        (65, "Best Year Net Income",
+         f"=MAX({net_income_refs})", FMT_CURRENCY),
+        (66, "Worst Year Net Income",
+         f"=MIN({net_income_refs})", FMT_CURRENCY),
+        (67, "Year-1 to Year-20 Net Income Growth",
+         f"=IFERROR({ni_last}/{ni_c1}-1,0)", FMT_PCT),
+    ]
+
+    for r, label, formula, fmt in growth_stats:
+        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=2)
+        lc = ws.cell(row=r, column=1, value=label)
+        style_label_cell(lc, indent=1)
+        vc = ws.cell(row=r, column=3, value=formula)
+        style_calc_cell(vc, fmt, bold=True)
+
+    # ── Legend ──
+    row = 71
     ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=4)
     legend = ws.cell(row=row, column=1,
                      value="Input cells are highlighted in orange. "
